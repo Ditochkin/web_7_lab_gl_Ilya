@@ -9,13 +9,28 @@ const vs = `
   uniform mat4 u_view;
   uniform mat4 u_world;
 
+  uniform vec3 u_lightWorldPositionMower1;
+  uniform vec3 u_lightWorldPositionMower2;
+
   varying vec3 v_normal;
   varying vec2 v_texcoord;
   varying vec3 v_vertPos;
 
+  varying vec3 v_surfaceToLight;
+  varying vec3 v_surfaceToLightMower1;
+  varying vec3 v_surfaceToLightMower2;
+  varying vec3 v_surfaceToView;
+
   void main() 
   {
+    vec3 u_lightWorldPosition = vec3(-0.75, 0.4, 0.7);
+
     vec4 position = u_projection * u_view * u_world * vec4(a_position, 1.0);
+
+    vec3 surfaceWorldPosition = (u_world * vec4(a_position, 1.0)).xyz;
+    v_surfaceToLight = u_lightWorldPosition - surfaceWorldPosition;
+    v_surfaceToLightMower1 = u_lightWorldPositionMower1 - surfaceWorldPosition;
+    v_surfaceToLightMower2 = u_lightWorldPositionMower2 - surfaceWorldPosition;
 
     gl_Position = position;
     
@@ -24,35 +39,86 @@ const vs = `
 
     vec4 vertPos = u_view * vec4(a_position, 1.0);
     v_vertPos = vec3(vertPos) / vertPos.w;
+
+    v_surfaceToView = vec3(0.0, 1.0, 0.0) - surfaceWorldPosition;
   }
   `;
 
 const fs = `
-  precision mediump float;
+precision mediump float;
 
-  varying vec3 v_normal;
-  varying vec2 v_texcoord;
-  varying vec3 v_vertPos;  
+varying vec3 v_normal;
+varying vec2 v_texcoord;
+varying vec3 v_vertPos;  
 
-  uniform vec3 u_lightDirection;
-  uniform vec3 u_diffuseColor;
-  
-  uniform sampler2D uNormalMap;
+uniform vec3 u_lightDirection;
+uniform vec3 u_diffuseColor;
+uniform float u_isLight;
 
-  void main () 
-  {
-    float shininessVal = 10.0;
+varying vec3 v_surfaceToLight;
+varying vec3 v_surfaceToLightMower1;
+varying vec3 v_surfaceToLightMower2;
+varying vec3 v_surfaceToView;
+
+uniform sampler2D uNormalMap;
+
+void main () 
+{
+    float shininessVal = 5.0;
     float diffuseCoefficient = 1.0;
     float specularCoefficient = 1.0;
     float ambientCoefficient = 0.4;
 
+    vec3 surfaceToLightDirection = normalize(v_surfaceToLight);
+    vec3 surfaceToViewDirection = normalize(v_surfaceToView);
+    vec3 halfVector = normalize(surfaceToLightDirection + surfaceToViewDirection);
+
+    float light = 0.0;
+    float specular2 = 0.0;
+    float dotFromDirection = dot(surfaceToLightDirection, -u_lightDirection);
+    if (dotFromDirection >= -100.0) {
+      light = dot(v_normal, surfaceToLightDirection);
+      if (light > 0.0) {
+        specular2 = pow(dot(v_normal, halfVector), shininessVal);
+      }
+    }
+
+    vec3 surfaceToLightDirectionMower1 = normalize(v_surfaceToLightMower1);
+    vec3 surfaceToViewDirectionMower1 = normalize(v_surfaceToView);
+    vec3 halfVectorMower1 = normalize(surfaceToLightDirectionMower1 + surfaceToViewDirectionMower1);
+
+    float lightMower1 = 0.0;
+    float specular2Mower1 = 0.0;
+    float dotFromDirectionMower1 = dot(surfaceToLightDirectionMower1, -u_lightDirection);
+    if (dotFromDirectionMower1 >= -100.0) {
+      lightMower1 = dot(v_normal, surfaceToLightDirectionMower1);
+      if (lightMower1 > 0.0) {
+        specular2Mower1 = pow(dot(v_normal, halfVectorMower1), shininessVal);
+      }
+    }
+
+    vec3 surfaceToLightDirectionMower2 = normalize(v_surfaceToLightMower2);
+    vec3 surfaceToViewDirectionMower2 = normalize(v_surfaceToView);
+    vec3 halfVectorMower2 = normalize(surfaceToLightDirectionMower2 + surfaceToViewDirectionMower2);
+
+    float lightMower2 = 0.0;
+    float specular2Mower2 = 0.0;
+    float dotFromDirectionMower2 = dot(surfaceToLightDirectionMower2, -u_lightDirection);
+    if (dotFromDirectionMower2 >= -100.0) {
+      lightMower2 = dot(v_normal, surfaceToLightDirectionMower2);
+      if (lightMower2 > 0.0) {
+        specular2Mower2 = pow(dot(v_normal, halfVectorMower2), shininessVal);
+      }
+    }
+
     vec3 ambientColor = vec3(0.5, 0.2, 0.0);
     vec3 diffuseColor = u_diffuseColor;
     vec3 specularColor = vec3(1.0, 1.0, 1.0);
+    vec3 posLamp = vec3(0.0, 1.0, 0.0);
 
     vec3 normalMap = v_normal + texture2D(uNormalMap, v_texcoord).rgb;
     vec3 N = normalize(normalMap * 2.0 - 1.0);
-    vec3 L = normalize(u_lightDirection);
+    vec3 L = normalize(posLamp - v_vertPos);
     float lambertian = max(dot(N, L), 0.0);
 
     vec3 R = normalize(reflect(-L, N));
@@ -63,9 +129,13 @@ const fs = `
     vec3 diffuse = diffuseCoefficient * lambertian * diffuseColor;
     vec3 specularVector = specularCoefficient * specular * specularColor;
     vec3 ambient = ambientCoefficient * ambientColor;
+    float isLight = max(0.0, u_isLight);
 
-    gl_FragColor = vec4(ambient + diffuse + specularVector, 1.0);
-  }
+    gl_FragColor = vec4(ambient + diffuse + specularVector + specular2 * light * isLight 
+                        + vec3(1.0, 0.0, 0.0) * specular2Mower1 * lightMower1 * isLight
+                        + vec3(1.0, 0.0, 1.0) * specular2Mower2 * lightMower2 * isLight, 1.0);
+}
+
   `;
 
 const canvas = document.getElementById("orange");
@@ -109,6 +179,7 @@ glMatrix.mat4.rotate(u_worldMower2, u_worldMower2, radian(-180), [0, 0, 1]);
 glMatrix.mat4.translate(u_worldMower2, u_worldMower2, [0.0, -0.85, 0.0]);
 
 let meshProgramInfo = webglUtils.createProgramInfo(gl, [vs, fs]);
+let isLight = 1.0;
 
 document.addEventListener('keydown', (event) => {
   let key = event.key;
@@ -180,6 +251,12 @@ document.addEventListener('keydown', (event) => {
     curDirDog = "Down"
 
     glMatrix.mat4.translate(u_worldDog, u_worldDog, [0.0, -speed, 0.0]);
+  }
+
+  else if (key == "f")
+  {
+    isLight *= -1;
+    console.log(isLight)
   }
 
   if (u_worldDog[14] > border)
@@ -297,6 +374,9 @@ async function main() {
 
         gl.useProgram(meshProgramInfo.program);
 
+        let positionLightMower1 = [u_worldMower[12], 0.2, u_worldMower[14]];
+        let positionLightMower2 = [u_worldMower2[12], 0.2, u_worldMower2[14]];
+
         // -- grass --
 
         webglUtils.setBuffersAndAttributes(gl, meshProgramInfo, bufferInfoGrass);
@@ -312,6 +392,9 @@ async function main() {
             u_projection: projection,
             u_world: u_world,
             uNormalMap: mapTexture,
+            u_lightWorldPositionMower1: positionLightMower1,
+            u_lightWorldPositionMower2: positionLightMower2,
+            u_isLight: isLight
         });
 
         webglUtils.drawBufferInfo(gl, bufferInfoGrass);
@@ -330,6 +413,9 @@ async function main() {
             u_projection: projection,
             u_world: u_worldDog,
             uNormalMap: mapTexture,
+            u_lightWorldPositionMower1: positionLightMower1,
+            u_lightWorldPositionMower2: positionLightMower2,
+            u_isLight: isLight
         });
 
         webglUtils.drawBufferInfo(gl, bufferInfoDog);
@@ -348,6 +434,9 @@ async function main() {
             u_projection: projection,
             u_world: u_worldLamp,
             uNormalMap: mapTextureSteel,
+            u_lightWorldPositionMower1: positionLightMower1,
+            u_lightWorldPositionMower2: positionLightMower2,
+            u_isLight: isLight
         });
 
         webglUtils.drawBufferInfo(gl, bufferInfoLamp);
@@ -366,6 +455,9 @@ async function main() {
             u_projection: projection,
             u_world: u_worldCat,
             uNormalMap: mapTexture,
+            u_lightWorldPositionMower1: positionLightMower1,
+            u_lightWorldPositionMower2: positionLightMower2,
+            u_isLight: isLight
         });
 
         webglUtils.drawBufferInfo(gl, bufferInfoCat);
@@ -418,7 +510,7 @@ async function main() {
 
         if (u_worldMower[14] >= u_worldDog[14] - borderObj && u_worldMower[14] <= u_worldDog[14] + borderObj && u_worldMower[12] >= u_worldDog[12] - borderObj && u_worldMower[12] <= u_worldDog[12] + borderObj)
         {
-          alert("You lose!");
+          // alert("You lose!");
           u_worldDog[14] = 0.0;
           u_worldDog[12] = 0.0;
           u_worldMower[14] = 1.0;
@@ -441,6 +533,9 @@ async function main() {
             u_projection: projection,
             u_world: u_worldMower,
             uNormalMap: mapTextureSteel,
+            u_lightWorldPositionMower1: positionLightMower1,
+            u_lightWorldPositionMower2: positionLightMower2,
+            u_isLight: isLight
         });
 
         webglUtils.drawBufferInfo(gl, bufferInfoMower);
@@ -499,7 +594,7 @@ async function main() {
 
         if (u_worldMower2[14] >= u_worldDog[14] - borderObj && u_worldMower2[14] <= u_worldDog[14] + borderObj && u_worldMower2[12] >= u_worldDog[12] - borderObj && u_worldMower2[12] <= u_worldDog[12] + borderObj)
         {
-          alert("You lose!");
+          // alert("You lose!");
           u_worldDog[14] = 0.0;
           u_worldDog[12] = 0.0;
           u_worldMower2[14] = -0.9;
@@ -513,7 +608,7 @@ async function main() {
         glMatrix.mat4.translate(u_worldMower2, u_worldMower2, [0.004 + speed2, 0.0, 0.0]);
 
         glMatrix.mat4.rotate(u_world, u_world, radian(speed), [1, 1, 0]);
-        color = [0.2, 0.0, 0.0]
+        color = [1.0, 0.0, 1.0]
 
         webglUtils.setUniforms(meshProgramInfo, {
             u_lightDirection: lightDir,
@@ -522,6 +617,9 @@ async function main() {
             u_projection: projection,
             u_world: u_worldMower2,
             uNormalMap: mapTextureSteel,
+            u_lightWorldPositionMower1: positionLightMower1,
+            u_lightWorldPositionMower2: positionLightMower2,
+            u_isLight: isLight
         });
 
         webglUtils.drawBufferInfo(gl, bufferInfoMower2);
