@@ -510,7 +510,7 @@ async function main() {
 
         if (u_worldMower[14] >= u_worldDog[14] - borderObj && u_worldMower[14] <= u_worldDog[14] + borderObj && u_worldMower[12] >= u_worldDog[12] - borderObj && u_worldMower[12] <= u_worldDog[12] + borderObj)
         {
-          // alert("You lose!");
+          alert("You lose!");
           u_worldDog[14] = 0.0;
           u_worldDog[12] = 0.0;
           u_worldMower[14] = 1.0;
@@ -594,7 +594,7 @@ async function main() {
 
         if (u_worldMower2[14] >= u_worldDog[14] - borderObj && u_worldMower2[14] <= u_worldDog[14] + borderObj && u_worldMower2[12] >= u_worldDog[12] - borderObj && u_worldMower2[12] <= u_worldDog[12] + borderObj)
         {
-          // alert("You lose!");
+          alert("You lose!");
           u_worldDog[14] = 0.0;
           u_worldDog[12] = 0.0;
           u_worldMower2[14] = -0.9;
